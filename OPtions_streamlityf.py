@@ -1,8 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
+import matplotlib.pyplot as plt
 
 # Set up the page layout
 st.set_page_config(page_title="Stock Option Analysis", layout="wide")
@@ -32,8 +31,8 @@ if ticker:
 
     if selected_date:
         st.subheader(f"Options Data for {ticker} - Expiration Date: {selected_date}")
-        # Fetch option chain for the selected date
         try:
+            # Fetch option chain for the selected date
             option_chain = stock.option_chain(selected_date)
             calls = option_chain.calls
             puts = option_chain.puts
@@ -43,83 +42,66 @@ if ticker:
             st.sidebar.subheader("Analyze Specific Option")
             option_symbol = st.sidebar.selectbox("Select an option contract:", all_options["contractSymbol"].unique())
 
-            # Display plots for the selected option
             if option_symbol:
                 st.subheader(f"Trend Analysis for {option_symbol}")
 
-                # Fetch historical data for the selected option (default to 1 month)
+                # Fetch historical data for the selected option
                 try:
                     historical_data = yf.download(option_symbol, period="1mo", interval="1d")
                     if not historical_data.empty:
                         historical_data.reset_index(inplace=True)
 
-                        # Plot price trend
+                        # Ensure all columns are 1-dimensional
+                        for col in ["Open", "High", "Low", "Close", "Volume"]:
+                            if isinstance(historical_data[col].iloc[0], (list, pd.Series, pd.DataFrame)):
+                                historical_data[col] = historical_data[col].apply(
+                                    lambda x: x[0] if isinstance(x, (list, pd.Series)) else x
+                                )
+
+                        # Price Trend Plot
                         st.markdown("#### Price Trend")
-                        price_fig = px.line(
-                            historical_data,
-                            x="Date",
-                            y=["Open", "Close", "High", "Low"],
-                            title=f"Price Trend for {option_symbol}",
-                            labels={"value": "Price", "variable": "Metric", "Date": "Date"},
-                        )
-                        st.plotly_chart(price_fig, use_container_width=True)
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        ax.plot(historical_data["Date"], historical_data["Open"], label="Open", color="blue")
+                        ax.plot(historical_data["Date"], historical_data["High"], label="High", color="green")
+                        ax.plot(historical_data["Date"], historical_data["Low"], label="Low", color="red")
+                        ax.plot(historical_data["Date"], historical_data["Close"], label="Close", color="black")
+                        ax.set_title(f"Price Trend for {option_symbol}")
+                        ax.set_xlabel("Date")
+                        ax.set_ylabel("Price")
+                        ax.legend()
+                        st.pyplot(fig)
 
-                        # Plot volume trend
+                        # Volume Trend Plot
                         st.markdown("#### Volume Trend")
-                        volume_fig = px.bar(
-                            historical_data,
-                            x="Date",
-                            y="Volume",
-                            title=f"Volume Trend for {option_symbol}",
-                            labels={"Volume": "Volume", "Date": "Date"},
-                        )
-                        st.plotly_chart(volume_fig, use_container_width=True)
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        ax.bar(historical_data["Date"], historical_data["Volume"], color="purple")
+                        ax.set_title(f"Volume Trend for {option_symbol}")
+                        ax.set_xlabel("Date")
+                        ax.set_ylabel("Volume")
+                        st.pyplot(fig)
 
-                        # Combined price and volume overlay plot
+                        # Combined Price and Volume Plot
                         st.markdown("#### Combined Price and Volume Trend")
-                        overlay_fig = go.Figure()
+                        fig, ax1 = plt.subplots(figsize=(10, 6))
+                        ax1.plot(historical_data["Date"], historical_data["Close"], label="Close Price", color="blue")
+                        ax1.set_xlabel("Date")
+                        ax1.set_ylabel("Price", color="blue")
+                        ax1.tick_params(axis="y", labelcolor="blue")
 
-                        # Add price trends
-                        overlay_fig.add_trace(go.Scatter(
-                            x=historical_data["Date"],
-                            y=historical_data["Close"],
-                            mode="lines",
-                            name="Close Price",
-                            line=dict(color="blue", width=2),
-                        ))
+                        ax2 = ax1.twinx()
+                        ax2.bar(historical_data["Date"], historical_data["Volume"], color="gray", alpha=0.5, label="Volume")
+                        ax2.set_ylabel("Volume", color="gray")
+                        ax2.tick_params(axis="y", labelcolor="gray")
 
-                        # Add volume bars
-                        overlay_fig.add_trace(go.Bar(
-                            x=historical_data["Date"],
-                            y=historical_data["Volume"],
-                            name="Volume",
-                            marker=dict(color="rgba(255, 182, 193, 0.6)"),
-                            yaxis="y2",
-                        ))
-
-                        # Configure layout for dual y-axes
-                        overlay_fig.update_layout(
-                            title=f"Price and Volume Trend for {option_symbol}",
-                            xaxis_title="Date",
-                            yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
-                            yaxis2=dict(
-                                title="Volume",
-                                titlefont=dict(color="red"),
-                                tickfont=dict(color="red"),
-                                anchor="x",
-                                overlaying="y",
-                                side="right",
-                            ),
-                            legend=dict(x=0.1, y=1.1, orientation="h"),
-                            margin=dict(l=40, r=40, t=50, b=40),
-                        )
-                        st.plotly_chart(overlay_fig, use_container_width=True)
+                        fig.suptitle(f"Price and Volume Trend for {option_symbol}")
+                        fig.tight_layout()
+                        st.pyplot(fig)
                     else:
                         st.error("No historical data available for this option.")
                 except Exception as e:
                     st.error(f"Error fetching historical data: {e}")
 
-            # Show sorted data by volume
+            # Display sorted data by volume
             st.markdown("### Calls Data Sorted by Volume")
             calls_sorted = calls.sort_values(by="volume", ascending=False)
             st.dataframe(calls_sorted)
