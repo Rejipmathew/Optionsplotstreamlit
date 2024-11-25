@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.express as px
 
 # Set up the page layout
@@ -10,7 +11,6 @@ st.set_page_config(page_title="Stock Option Analysis", layout="wide")
 st.sidebar.title("Options Analysis Settings")
 ticker = st.sidebar.text_input("Enter stock ticker (e.g., TSLA):", value="TSLA")
 include_expired = st.sidebar.checkbox("Include expired options", value=False)
-selected_date = None
 
 # Title
 st.title("Stock Option Analysis")
@@ -23,7 +23,8 @@ if ticker:
 
     if option_dates:
         st.sidebar.subheader("Available Option Expiration Dates")
-        selected_date = st.sidebar.selectbox("Choose an expiration date:", option_dates)
+        # Default to the first expiration date if none is selected
+        selected_date = st.sidebar.selectbox("Choose an expiration date:", option_dates, index=0)
         if include_expired:
             st.sidebar.warning("Expired options will be fetched, which might take longer.")
     else:
@@ -46,12 +47,12 @@ if ticker:
             if option_symbol:
                 st.subheader(f"Trend Analysis for {option_symbol}")
 
-                # Fetch historical data for the selected option
+                # Fetch historical data for the selected option (default to 1 month)
                 try:
                     historical_data = yf.download(option_symbol, period="1mo", interval="1d")
                     if not historical_data.empty:
                         historical_data.reset_index(inplace=True)
-                        
+
                         # Plot price trend
                         st.markdown("#### Price Trend")
                         price_fig = px.line(
@@ -73,6 +74,46 @@ if ticker:
                             labels={"Volume": "Volume", "Date": "Date"},
                         )
                         st.plotly_chart(volume_fig, use_container_width=True)
+
+                        # Combined price and volume overlay plot
+                        st.markdown("#### Combined Price and Volume Trend")
+                        overlay_fig = go.Figure()
+
+                        # Add price trends
+                        overlay_fig.add_trace(go.Scatter(
+                            x=historical_data["Date"],
+                            y=historical_data["Close"],
+                            mode="lines",
+                            name="Close Price",
+                            line=dict(color="blue", width=2),
+                        ))
+
+                        # Add volume bars
+                        overlay_fig.add_trace(go.Bar(
+                            x=historical_data["Date"],
+                            y=historical_data["Volume"],
+                            name="Volume",
+                            marker=dict(color="rgba(255, 182, 193, 0.6)"),
+                            yaxis="y2",
+                        ))
+
+                        # Configure layout for dual y-axes
+                        overlay_fig.update_layout(
+                            title=f"Price and Volume Trend for {option_symbol}",
+                            xaxis_title="Date",
+                            yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
+                            yaxis2=dict(
+                                title="Volume",
+                                titlefont=dict(color="red"),
+                                tickfont=dict(color="red"),
+                                anchor="x",
+                                overlaying="y",
+                                side="right",
+                            ),
+                            legend=dict(x=0.1, y=1.1, orientation="h"),
+                            margin=dict(l=40, r=40, t=50, b=40),
+                        )
+                        st.plotly_chart(overlay_fig, use_container_width=True)
                     else:
                         st.error("No historical data available for this option.")
                 except Exception as e:
