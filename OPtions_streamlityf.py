@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 # Alpha Vantage API Key
-API_KEY = "your_alpha_vantage_api_key"
+API_KEY = "4GPS846F30484987"
 
 # Set up the page layout
 st.set_page_config(page_title="Stock Option Analysis", layout="wide")
