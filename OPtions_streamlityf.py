@@ -51,12 +51,11 @@ if ticker:
                     if not historical_data.empty:
                         historical_data.reset_index(inplace=True)
 
-                        # Ensure all columns are 1-dimensional
+                        # Convert columns to scalar values if necessary
                         for col in ["Open", "High", "Low", "Close", "Volume"]:
-                            if isinstance(historical_data[col].iloc[0], (list, pd.Series, pd.DataFrame)):
-                                historical_data[col] = historical_data[col].apply(
-                                    lambda x: x[0] if isinstance(x, (list, pd.Series)) else x
-                                )
+                            historical_data[col] = historical_data[col].apply(
+                                lambda x: x[0] if isinstance(x, (list, pd.Series, pd.DataFrame, np.ndarray)) else x
+                            )
 
                         # Price Trend Plot
                         st.markdown("#### Price Trend")
