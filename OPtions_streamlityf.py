@@ -54,7 +54,7 @@ if ticker:
                         # Convert columns to scalar values if necessary
                         for col in ["Open", "High", "Low", "Close", "Volume"]:
                             historical_data[col] = historical_data[col].apply(
-                                lambda x: x[0] if isinstance(x, (list, pd.Series, pd.DataFrame, np.ndarray)) else x
+                                lambda x: x[0] if isinstance(x, (list, pd.Series, pd.DataFrame)) else x
                             )
 
                         # Price Trend Plot
