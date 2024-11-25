@@ -1,7 +1,6 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
 
 # Set up the page layout
@@ -74,46 +73,6 @@ if ticker:
                             labels={"Volume": "Volume", "Date": "Date"},
                         )
                         st.plotly_chart(volume_fig, use_container_width=True)
-
-                        # Combined price and volume overlay plot
-                        st.markdown("#### Combined Price and Volume Trend")
-                        overlay_fig = go.Figure()
-
-                        # Add price trends
-                        overlay_fig.add_trace(go.Scatter(
-                            x=historical_data["Date"],
-                            y=historical_data["Close"],
-                            mode="lines",
-                            name="Close Price",
-                            line=dict(color="blue", width=2),
-                        ))
-
-                        # Add volume bars
-                        overlay_fig.add_trace(go.Bar(
-                            x=historical_data["Date"],
-                            y=historical_data["Volume"],
-                            name="Volume",
-                            marker=dict(color="rgba(255, 182, 193, 0.6)"),
-                            yaxis="y2",
-                        ))
-
-                        # Configure layout for dual y-axes
-                        overlay_fig.update_layout(
-                            title=f"Price and Volume Trend for {option_symbol}",
-                            xaxis_title="Date",
-                            yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
-                            yaxis2=dict(
-                                title="Volume",
-                                titlefont=dict(color="red"),
-                                tickfont=dict(color="red"),
-                                anchor="x",
-                                overlaying="y",
-                                side="right",
-                            ),
-                            legend=dict(x=0.1, y=1.1, orientation="h"),
-                            margin=dict(l=40, r=40, t=50, b=40),
-                        )
-                        st.plotly_chart(overlay_fig, use_container_width=True)
                     else:
                         st.error("No historical data available for this option.")
                 except Exception as e:
