@@ -32,8 +32,8 @@ if ticker:
 
     if selected_date:
         st.subheader(f"Options Data for {ticker} - Expiration Date: {selected_date}")
+        # Fetch option chain for the selected date
         try:
-            # Fetch option chain for the selected date
             option_chain = stock.option_chain(selected_date)
             calls = option_chain.calls
             puts = option_chain.puts
@@ -43,37 +43,24 @@ if ticker:
             st.sidebar.subheader("Analyze Specific Option")
             option_symbol = st.sidebar.selectbox("Select an option contract:", all_options["contractSymbol"].unique())
 
+            # Display plots for the selected option
             if option_symbol:
                 st.subheader(f"Trend Analysis for {option_symbol}")
 
-                # Historical Data Settings
-                st.sidebar.subheader("Historical Data Settings")
-                selected_period = st.sidebar.selectbox("Select data period:", ["1d", "5d"], index=1)
-                selected_interval = st.sidebar.selectbox("Select data interval:", ["1d", "1h"], index=0)
-
                 # Fetch historical data for the selected option
                 try:
-                    historical_data = yf.download(option_symbol, period=selected_period, interval=selected_interval)
+                    historical_data = yf.download(option_symbol, period="1mo", interval="1d")
                     if not historical_data.empty:
                         historical_data.reset_index(inplace=True)
-
-                        # Melt the data for multi-metric plotting
-                        melted_data = historical_data.melt(
-                            id_vars=["Date"],
-                            value_vars=["Open", "Close", "High", "Low"],
-                            var_name="Metric",
-                            value_name="Price"
-                        )
-
+                        
                         # Plot price trend
                         st.markdown("#### Price Trend")
                         price_fig = px.line(
-                            melted_data,
+                            historical_data,
                             x="Date",
-                            y="Price",
-                            color="Metric",
+                            y=["Open", "Close", "High", "Low"],
                             title=f"Price Trend for {option_symbol}",
-                            labels={"Price": "Price", "Metric": "Metric", "Date": "Date"},
+                            labels={"value": "Price", "variable": "Metric", "Date": "Date"},
                         )
                         st.plotly_chart(price_fig, use_container_width=True)
 
@@ -132,7 +119,7 @@ if ticker:
                 except Exception as e:
                     st.error(f"Error fetching historical data: {e}")
 
-            # Display sorted option chain data
+            # Show sorted data by volume
             st.markdown("### Calls Data Sorted by Volume")
             calls_sorted = calls.sort_values(by="volume", ascending=False)
             st.dataframe(calls_sorted)
