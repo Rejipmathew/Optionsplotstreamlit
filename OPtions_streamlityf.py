@@ -48,11 +48,15 @@ if ticker:
                 st.subheader(f"Trend Analysis for {option_symbol}")
 
                 # Fetch historical data for the selected option
+                st.sidebar.subheader("Historical Data Settings")
+                selected_period = st.sidebar.selectbox("Select data period:", ["1d", "5d"], index=1)
+                selected_interval = st.sidebar.selectbox("Select data interval:", ["1d", "1h"], index=0)
+
                 try:
-                    historical_data = yf.download(option_symbol, period="1mo", interval="1d")
+                    historical_data = yf.download(option_symbol, period=selected_period, interval=selected_interval)
                     if not historical_data.empty:
                         historical_data.reset_index(inplace=True)
-                        
+
                         # Plot price trend
                         st.markdown("#### Price Trend")
                         price_fig = px.line(
