@@ -33,98 +33,102 @@ if ticker:
     if selected_date:
         st.subheader(f"Options Data for {ticker} - Expiration Date: {selected_date}")
         # Fetch option chain for the selected date
-        option_chain = stock.option_chain(selected_date)
-        calls = option_chain.calls
-        puts = option_chain.puts
+        try:
+            option_chain = stock.option_chain(selected_date)
+            calls = option_chain.calls
+            puts = option_chain.puts
 
-        # Sidebar for specific option analysis
-        all_options = pd.concat([calls, puts]).reset_index(drop=True)
-        st.sidebar.subheader("Analyze Specific Option")
-        option_symbol = st.sidebar.selectbox("Select an option contract:", all_options["contractSymbol"].unique())
+            # Combine calls and puts for specific option analysis
+            all_options = pd.concat([calls, puts]).reset_index(drop=True)
+            st.sidebar.subheader("Analyze Specific Option")
+            option_symbol = st.sidebar.selectbox("Select an option contract:", all_options["contractSymbol"].unique())
 
-        # Display plots at the top of the page
-        if option_symbol:
-            st.subheader(f"Trend Analysis for {option_symbol}")
+            # Display plots for the selected option
+            if option_symbol:
+                st.subheader(f"Trend Analysis for {option_symbol}")
 
-            # Fetch historical data for the selected option
-            try:
-                historical_data = yf.download(option_symbol, period="1mo", interval="1d")
-                if not historical_data.empty:
-                    # Plot price trend
-                    st.markdown("#### Price Trend")
-                    price_fig = px.line(
-                        historical_data,
-                        x=historical_data.index,
-                        y=["Open", "Close", "High", "Low"],
-                        title=f"Price Trend for {option_symbol}",
-                        labels={"value": "Price", "variable": "Metric", "index": "Date"},
-                    )
-                    st.plotly_chart(price_fig, use_container_width=True)
+                # Fetch historical data for the selected option
+                try:
+                    historical_data = yf.download(option_symbol, period="1mo", interval="1d")
+                    if not historical_data.empty:
+                        historical_data.reset_index(inplace=True)
+                        
+                        # Plot price trend
+                        st.markdown("#### Price Trend")
+                        price_fig = px.line(
+                            historical_data,
+                            x="Date",
+                            y=["Open", "Close", "High", "Low"],
+                            title=f"Price Trend for {option_symbol}",
+                            labels={"value": "Price", "variable": "Metric", "Date": "Date"},
+                        )
+                        st.plotly_chart(price_fig, use_container_width=True)
 
-                    # Plot volume trend
-                    st.markdown("#### Volume Trend")
-                    volume_fig = px.bar(
-                        historical_data,
-                        x=historical_data.index,
-                        y="Volume",
-                        title=f"Volume Trend for {option_symbol}",
-                        labels={"Volume": "Volume", "index": "Date"},
-                    )
-                    st.plotly_chart(volume_fig, use_container_width=True)
+                        # Plot volume trend
+                        st.markdown("#### Volume Trend")
+                        volume_fig = px.bar(
+                            historical_data,
+                            x="Date",
+                            y="Volume",
+                            title=f"Volume Trend for {option_symbol}",
+                            labels={"Volume": "Volume", "Date": "Date"},
+                        )
+                        st.plotly_chart(volume_fig, use_container_width=True)
 
-                    # Combined price and volume overlay plot
-                    st.markdown("#### Combined Price and Volume Trend")
-                    overlay_fig = go.Figure()
+                        # Combined price and volume overlay plot
+                        st.markdown("#### Combined Price and Volume Trend")
+                        overlay_fig = go.Figure()
 
-                    # Add price trends
-                    overlay_fig.add_trace(go.Scatter(
-                        x=historical_data.index,
-                        y=historical_data["Close"],
-                        mode="lines",
-                        name="Close Price",
-                        line=dict(color="blue", width=2),
-                    ))
+                        # Add price trends
+                        overlay_fig.add_trace(go.Scatter(
+                            x=historical_data["Date"],
+                            y=historical_data["Close"],
+                            mode="lines",
+                            name="Close Price",
+                            line=dict(color="blue", width=2),
+                        ))
 
-                    # Add volume bars
-                    overlay_fig.add_trace(go.Bar(
-                        x=historical_data.index,
-                        y=historical_data["Volume"],
-                        name="Volume",
-                        marker=dict(color="rgba(255, 182, 193, 0.6)"),
-                        yaxis="y2",
-                    ))
+                        # Add volume bars
+                        overlay_fig.add_trace(go.Bar(
+                            x=historical_data["Date"],
+                            y=historical_data["Volume"],
+                            name="Volume",
+                            marker=dict(color="rgba(255, 182, 193, 0.6)"),
+                            yaxis="y2",
+                        ))
 
-                    # Configure layout for dual y-axes
-                    overlay_fig.update_layout(
-                        title=f"Price and Volume Trend for {option_symbol}",
-                        xaxis_title="Date",
-                        yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
-                        yaxis2=dict(
-                            title="Volume",
-                            titlefont=dict(color="red"),
-                            tickfont=dict(color="red"),
-                            anchor="x",
-                            overlaying="y",
-                            side="right",
-                        ),
-                        legend=dict(x=0.1, y=1.1, orientation="h"),
-                        margin=dict(l=40, r=40, t=50, b=40),
-                    )
+                        # Configure layout for dual y-axes
+                        overlay_fig.update_layout(
+                            title=f"Price and Volume Trend for {option_symbol}",
+                            xaxis_title="Date",
+                            yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
+                            yaxis2=dict(
+                                title="Volume",
+                                titlefont=dict(color="red"),
+                                tickfont=dict(color="red"),
+                                anchor="x",
+                                overlaying="y",
+                                side="right",
+                            ),
+                            legend=dict(x=0.1, y=1.1, orientation="h"),
+                            margin=dict(l=40, r=40, t=50, b=40),
+                        )
+                        st.plotly_chart(overlay_fig, use_container_width=True)
+                    else:
+                        st.error("No historical data available for this option.")
+                except Exception as e:
+                    st.error(f"Error fetching historical data: {e}")
 
-                    st.plotly_chart(overlay_fig, use_container_width=True)
-                else:
-                    st.error("No historical data available for this option.")
-            except Exception as e:
-                st.error(f"Error fetching historical data: {e}")
+            # Show sorted data by volume
+            st.markdown("### Calls Data Sorted by Volume")
+            calls_sorted = calls.sort_values(by="volume", ascending=False)
+            st.dataframe(calls_sorted)
 
-        # Show sorted data by volume
-        st.markdown("### Calls Data Sorted by Volume")
-        calls_sorted = calls.sort_values(by="volume", ascending=False)
-        st.dataframe(calls_sorted)
-
-        st.markdown("### Puts Data Sorted by Volume")
-        puts_sorted = puts.sort_values(by="volume", ascending=False)
-        st.dataframe(puts_sorted)
+            st.markdown("### Puts Data Sorted by Volume")
+            puts_sorted = puts.sort_values(by="volume", ascending=False)
+            st.dataframe(puts_sorted)
+        except Exception as e:
+            st.error(f"Error fetching option chain data: {e}")
 
 # Footer
 st.markdown("---")
