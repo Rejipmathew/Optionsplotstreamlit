@@ -1,11 +1,8 @@
 import streamlit as st
-import requests
+import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-
-# Alpha Vantage API Key
-API_KEY = "4GPS846F30484987"
 
 # Set up the page layout
 st.set_page_config(page_title="Stock Option Analysis", layout="wide")
@@ -21,109 +18,118 @@ st.title("Stock Option Analysis")
 st.markdown("Analyze stock options, visualize trends, and track specific option performance.")
 
 if ticker:
-    # Fetch stock metadata
-    try:
-        stock_url = f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={ticker}&apikey={API_KEY}"
-        stock_data = requests.get(stock_url).json()
+    # Fetch stock data
+    stock = yf.Ticker(ticker)
+    option_dates = stock.options
 
-        if "bestMatches" in stock_data and stock_data["bestMatches"]:
-            st.success(f"Found stock: {stock_data['bestMatches'][0]['2. name']} ({ticker.upper()})")
-        else:
-            st.error("Stock not found. Please check the ticker.")
-    except Exception as e:
-        st.error(f"Error fetching stock data: {e}")
-
-    # Placeholder for option expiration dates (Alpha Vantage lacks options directly)
-    st.sidebar.subheader("Available Option Expiration Dates")
-    option_dates = ["2024-12-15", "2025-01-19"]  # Placeholder for demo
-    selected_date = st.sidebar.selectbox("Choose an expiration date:", option_dates)
+    if option_dates:
+        st.sidebar.subheader("Available Option Expiration Dates")
+        selected_date = st.sidebar.selectbox("Choose an expiration date:", option_dates)
+        if include_expired:
+            st.sidebar.warning("Expired options will be fetched, which might take longer.")
+    else:
+        st.error("No option data available for this stock.")
 
     if selected_date:
         st.subheader(f"Options Data for {ticker} - Expiration Date: {selected_date}")
-        # Fetch time series data
+        # Fetch option chain for the selected date
         try:
-            time_series_url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={API_KEY}"
-            time_series_data = requests.get(time_series_url).json()
+            option_chain = stock.option_chain(selected_date)
+            calls = option_chain.calls
+            puts = option_chain.puts
 
-            if "Time Series (Daily)" in time_series_data:
-                df = pd.DataFrame.from_dict(time_series_data["Time Series (Daily)"], orient="index", dtype=float)
-                df = df.reset_index().rename(columns={
-                    "index": "Date",
-                    "1. open": "Open",
-                    "2. high": "High",
-                    "3. low": "Low",
-                    "4. close": "Close",
-                    "6. volume": "Volume"
-                })
-                df["Date"] = pd.to_datetime(df["Date"])
-                df.sort_values("Date", inplace=True)
+            # Combine calls and puts for specific option analysis
+            all_options = pd.concat([calls, puts]).reset_index(drop=True)
+            st.sidebar.subheader("Analyze Specific Option")
+            option_symbol = st.sidebar.selectbox("Select an option contract:", all_options["contractSymbol"].unique())
 
-                # Plot price trend
-                st.markdown("#### Price Trend")
-                price_fig = px.line(
-                    df,
-                    x="Date",
-                    y=["Open", "Close", "High", "Low"],
-                    title=f"Price Trend for {ticker}",
-                    labels={"value": "Price", "variable": "Metric", "Date": "Date"},
-                )
-                st.plotly_chart(price_fig, use_container_width=True)
+            # Display plots for the selected option
+            if option_symbol:
+                st.subheader(f"Trend Analysis for {option_symbol}")
 
-                # Plot volume trend
-                st.markdown("#### Volume Trend")
-                volume_fig = px.bar(
-                    df,
-                    x="Date",
-                    y="Volume",
-                    title=f"Volume Trend for {ticker}",
-                    labels={"Volume": "Volume", "Date": "Date"},
-                )
-                st.plotly_chart(volume_fig, use_container_width=True)
+                # Fetch historical data for the selected option
+                try:
+                    historical_data = yf.download(option_symbol, period="1mo", interval="1d")
+                    if not historical_data.empty:
+                        historical_data.reset_index(inplace=True)
+                        
+                        # Plot price trend
+                        st.markdown("#### Price Trend")
+                        price_fig = px.line(
+                            historical_data,
+                            x="Date",
+                            y=["Open", "Close", "High", "Low"],
+                            title=f"Price Trend for {option_symbol}",
+                            labels={"value": "Price", "variable": "Metric", "Date": "Date"},
+                        )
+                        st.plotly_chart(price_fig, use_container_width=True)
 
-                # Combined price and volume overlay plot
-                st.markdown("#### Combined Price and Volume Trend")
-                overlay_fig = go.Figure()
+                        # Plot volume trend
+                        st.markdown("#### Volume Trend")
+                        volume_fig = px.bar(
+                            historical_data,
+                            x="Date",
+                            y="Volume",
+                            title=f"Volume Trend for {option_symbol}",
+                            labels={"Volume": "Volume", "Date": "Date"},
+                        )
+                        st.plotly_chart(volume_fig, use_container_width=True)
 
-                # Add price trends
-                overlay_fig.add_trace(go.Scatter(
-                    x=df["Date"],
-                    y=df["Close"],
-                    mode="lines",
-                    name="Close Price",
-                    line=dict(color="blue", width=2),
-                ))
+                        # Combined price and volume overlay plot
+                        st.markdown("#### Combined Price and Volume Trend")
+                        overlay_fig = go.Figure()
 
-                # Add volume bars
-                overlay_fig.add_trace(go.Bar(
-                    x=df["Date"],
-                    y=df["Volume"],
-                    name="Volume",
-                    marker=dict(color="rgba(255, 182, 193, 0.6)"),
-                    yaxis="y2",
-                ))
+                        # Add price trends
+                        overlay_fig.add_trace(go.Scatter(
+                            x=historical_data["Date"],
+                            y=historical_data["Close"],
+                            mode="lines",
+                            name="Close Price",
+                            line=dict(color="blue", width=2),
+                        ))
 
-                # Configure layout for dual y-axes
-                overlay_fig.update_layout(
-                    title=f"Price and Volume Trend for {ticker}",
-                    xaxis_title="Date",
-                    yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
-                    yaxis2=dict(
-                        title="Volume",
-                        titlefont=dict(color="red"),
-                        tickfont=dict(color="red"),
-                        anchor="x",
-                        overlaying="y",
-                        side="right",
-                    ),
-                    legend=dict(x=0.1, y=1.1, orientation="h"),
-                    margin=dict(l=40, r=40, t=50, b=40),
-                )
-                st.plotly_chart(overlay_fig, use_container_width=True)
-            else:
-                st.error("No time series data available.")
+                        # Add volume bars
+                        overlay_fig.add_trace(go.Bar(
+                            x=historical_data["Date"],
+                            y=historical_data["Volume"],
+                            name="Volume",
+                            marker=dict(color="rgba(255, 182, 193, 0.6)"),
+                            yaxis="y2",
+                        ))
+
+                        # Configure layout for dual y-axes
+                        overlay_fig.update_layout(
+                            title=f"Price and Volume Trend for {option_symbol}",
+                            xaxis_title="Date",
+                            yaxis=dict(title="Price", titlefont=dict(color="blue"), tickfont=dict(color="blue")),
+                            yaxis2=dict(
+                                title="Volume",
+                                titlefont=dict(color="red"),
+                                tickfont=dict(color="red"),
+                                anchor="x",
+                                overlaying="y",
+                                side="right",
+                            ),
+                            legend=dict(x=0.1, y=1.1, orientation="h"),
+                            margin=dict(l=40, r=40, t=50, b=40),
+                        )
+                        st.plotly_chart(overlay_fig, use_container_width=True)
+                    else:
+                        st.error("No historical data available for this option.")
+                except Exception as e:
+                    st.error(f"Error fetching historical data: {e}")
+
+            # Show sorted data by volume
+            st.markdown("### Calls Data Sorted by Volume")
+            calls_sorted = calls.sort_values(by="volume", ascending=False)
+            st.dataframe(calls_sorted)
+
+            st.markdown("### Puts Data Sorted by Volume")
+            puts_sorted = puts.sort_values(by="volume", ascending=False)
+            st.dataframe(puts_sorted)
         except Exception as e:
-            st.error(f"Error fetching time series data: {e}")
+            st.error(f"Error fetching option chain data: {e}")
 
 # Footer
 st.markdown("---")
-st.markdown("Created using [Streamlit](https://streamlit.io/) and [Alpha Vantage API](https://www.alphavantage.co/).")
+st.markdown("Created using [Streamlit](https://streamlit.io/) and [Yahoo Finance API](https://pypi.org/project/yfinance/).")
