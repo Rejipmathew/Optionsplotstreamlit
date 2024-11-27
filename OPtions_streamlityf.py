@@ -13,6 +13,10 @@ ticker = st.sidebar.text_input("Enter stock ticker (e.g., TSLA):", value="TSLA")
 include_expired = st.sidebar.checkbox("Include expired options", value=False)
 selected_date = None
 
+# Add time period selection for historical data
+st.sidebar.subheader("Select Historical Data Period")
+data_period = st.sidebar.selectbox("Time Range:", ["1mo", "6mo", "1y", "5y"], index=0)
+
 # Title
 st.title("Stock Option Analysis")
 st.markdown("Analyze stock options, visualize trends, and track specific option performance.")
@@ -49,10 +53,10 @@ if ticker:
 
                 # Fetch historical data for the selected option
                 try:
-                    historical_data = yf.download(option_symbol, period="1mo", interval="1d")
+                    historical_data = yf.download(option_symbol, period=data_period, interval="1d")
                     if not historical_data.empty:
-                        historical_data.reset_index(inplace=True)
-                        
+                        historical_data = historical_data.reset_index()
+
                         # Plot price trend
                         st.markdown("#### Price Trend")
                         price_fig = px.line(
